@@ -31,7 +31,7 @@ from composer.spec.source.prover import dump_final_conf
 from composer.spec.source.task_ids import (
     bug_analysis_task_id, cvl_gen_task_id, INVARIANT_CVL_TASK_ID,
 )
-from composer.diagnostics.timing import get_run_summary
+from composer.diagnostics.timing import get_run_summary, RunSummary
 
 PROPERTIES_KEY = CacheKey[None, Properties]("properties")
 INV_CVL_KEY = CacheKey[None, GeneratedCVL]("invariant-cvl")
@@ -88,6 +88,23 @@ def dump_component_runs(
     (out_dir / "components_to_prover_runs.json").write_text(
         json.dumps(component_runs, indent=2)
     )
+
+
+def dump_token_usage(
+    project_root: str,
+    summary: RunSummary,
+) -> None:
+    """Write the run's accumulated LLM token usage to
+    ``.certora_internal/autoProve/token_usage.json`` under ``project_root``.
+
+    Raw counts only (``input`` / ``output`` / ``cache_read`` / ``cache_write``),
+    broken down ``by_model`` and ``by_phase`` plus run-wide ``totals``. Captures
+    every call through the LLM factory — including out-of-graph prover/CEX-analysis
+    side-calls — via the usage callback attached in ``create_llm_base``. The same
+    breakdown is also persisted to the run's ``RunMeta.tags`` (see ``_entry_point``)."""
+    payload = {"run_id": summary.run_id, **summary.token_usage_summary()}
+    out_dir = ensure_dir(under_project(project_root, AUTOPROVE_INTERNAL_DIR))
+    (out_dir / "token_usage.json").write_text(json.dumps(payload, indent=2))
 
 
 def _component_cache_key(
