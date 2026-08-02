@@ -119,6 +119,43 @@ def test_hardhat_config_also_anchors(tmp_path: Path) -> None:
     assert find_build_config_dir(contract, tmp_path) == project.resolve()
 
 
+def test_truffle_config_also_anchors(tmp_path: Path) -> None:
+    # The shape Truffle monorepos ship: one config per app, artifacts beside it.
+    project = tmp_path / "apps" / "token"
+    (project / "contracts").mkdir(parents=True)
+    (project / "build" / "contracts").mkdir(parents=True)
+    (project / "truffle-config.js").write_text("module.exports = {};")
+    contract = project / "contracts" / "Token.sol"
+    contract.write_text("contract Token {}")
+
+    assert find_build_config_dir(contract, tmp_path) == project.resolve()
+
+
+def test_truffle_v4_config_name_also_anchors(tmp_path: Path) -> None:
+    project = tmp_path / "apps" / "token"
+    (project / "contracts").mkdir(parents=True)
+    (project / "build" / "contracts").mkdir(parents=True)
+    (project / "truffle.js").write_text("module.exports = {};")
+    contract = project / "contracts" / "Token.sol"
+    contract.write_text("contract Token {}")
+
+    assert find_build_config_dir(contract, tmp_path) == project.resolve()
+
+
+def test_unbuilt_truffle_config_yields_to_root(tmp_path: Path) -> None:
+    # Same rule as the other build systems: a config without artifacts is not evidence
+    # that this is the project that got built.
+    (tmp_path / "foundry.toml").write_text("[profile.default]\n")
+    (tmp_path / "out").mkdir()
+    project = tmp_path / "apps" / "token"
+    (project / "contracts").mkdir(parents=True)
+    (project / "truffle-config.js").write_text("module.exports = {};")
+    contract = project / "contracts" / "Token.sol"
+    contract.write_text("contract Token {}")
+
+    assert find_build_config_dir(contract, tmp_path) == tmp_path.resolve()
+
+
 def test_walk_stops_at_root(tmp_path: Path) -> None:
     # A foundry.toml *above* the run root must not be picked up — the run root bounds
     # what the conf can reference.

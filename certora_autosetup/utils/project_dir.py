@@ -17,15 +17,28 @@ from pathlib import Path
 from typing import Optional
 
 # Build config filenames that mark a directory as a project root, in no particular order —
-# presence of any one of them is enough to anchor there.
-BUILD_CONFIG_FILENAMES = ("foundry.toml", "hardhat.config.js", "hardhat.config.ts")
+# presence of any one of them is enough to anchor there. Truffle has two: `truffle.js` is
+# the v4 spelling, `truffle-config.js` everything since.
+BUILD_CONFIG_FILENAMES = (
+    "foundry.toml",
+    "hardhat.config.js",
+    "hardhat.config.ts",
+    "truffle-config.js",
+    "truffle.js",
+)
+
+# Truffle writes artifacts here unless the config sets `contracts_build_directory`. Reading
+# that override means running node against the config, which is more than this needs: it
+# only has to recognise a built project, and the manager resolves the real path later.
+TRUFFLE_DEFAULT_BUILD_DIR = Path("build") / "contracts"
 
 
 def _artifact_dir_of(config_dir: Path) -> Optional[Path]:
     """Where *config_dir*'s build system would put artifacts, or None if it holds no config.
 
-    Foundry's ``out`` is configurable, so read it when present; Hardhat's ``artifacts`` is
-    taken as the default. The directory is not required to exist — the caller tests that.
+    Foundry's ``out`` is configurable, so read it when present; Hardhat's ``artifacts`` and
+    Truffle's ``build/contracts`` are taken as defaults. The directory is not required to
+    exist — the caller tests that.
     """
     foundry_toml = config_dir / "foundry.toml"
     if foundry_toml.exists():
@@ -40,6 +53,8 @@ def _artifact_dir_of(config_dir: Path) -> Optional[Path]:
         return config_dir / out
     if (config_dir / "hardhat.config.js").exists() or (config_dir / "hardhat.config.ts").exists():
         return config_dir / "artifacts"
+    if (config_dir / "truffle-config.js").exists() or (config_dir / "truffle.js").exists():
+        return config_dir / TRUFFLE_DEFAULT_BUILD_DIR
     return None
 
 
