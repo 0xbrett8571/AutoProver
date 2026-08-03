@@ -58,6 +58,36 @@ from certora_autosetup.utils.types import ContractHandle, ContractInfo
 COMPONENT = "Autosetup"
 
 
+def _reconcile_evm_version_keys(
+    config: Dict[str, Any],
+    updates: Dict[str, Any],
+    contract_names: List[str],
+) -> None:
+    """Reconcile solc_evm_version / solc_evm_version_map in a merged conf, in place.
+
+    The compilation updates started as a superset of the base build-system conf,
+    so when they carry neither the scalar nor the map, the invalid_evm_version
+    workaround removed the declared version — drop the base-re-emitted scalar
+    rather than resurrect a rejected setting. When the map is present it
+    supersedes the scalar (the prover forbids both), but must cover every
+    contract: extend it with the declared scalar for contracts it misses (e.g. a
+    cancun override plus the project-declared version for the rest).
+    """
+    if (
+        updates
+        and "solc_evm_version" not in updates
+        and "solc_evm_version_map" not in updates
+    ):
+        config.pop("solc_evm_version", None)
+    if "solc_evm_version_map" in config:
+        declared = config.pop("solc_evm_version", None)
+        if declared:
+            config["solc_evm_version_map"] = {
+                **{name: declared for name in contract_names},
+                **config["solc_evm_version_map"],
+            }
+
+
 class Autosetup:
     """Execute the autosetup phase and return an AutosetupResult.
 
@@ -442,6 +472,15 @@ class Autosetup:
         # This ensures any modifications made during compilation are preserved
         if self.compilation_config_updates:
             config.update(self.compilation_config_updates)
+
+        # Must run BEFORE drop_scalars_superseded_by_maps: it expands the
+        # declared scalar into the map's missing entries (the map must cover
+        # every contract), which is impossible once the scalar is dropped.
+        _reconcile_evm_version_keys(
+            config,
+            self.compilation_config_updates,
+            [ch.contract_name for ch in self.contract_handles],
+        )
 
         # A per-contract map supersedes its scalar counterpart, and certoraRun
         # rejects a conf carrying both. The merge above can produce such pairs:
